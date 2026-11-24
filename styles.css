@@ -28,22 +28,27 @@ body{
 }
 [hidden]{display:none !important}
 
-/* ---------- Layout: stacked (portrait) ---------- */
+/* ---------- Layout: stacked (portrait) ----------
+   The wheel takes whatever height is left, so the buttons never fall off the screen. */
 .app{
   max-width:680px;
   min-height:100%;
   margin:0 auto;
-  padding:calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
-          calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  padding:calc(14px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+          calc(14px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   display:grid;
   grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto minmax(200px,1fr) auto;
   grid-template-areas:"top" "stage" "side";
-  gap:16px;
-  align-content:start;
+  gap:14px;
 }
 .top{grid-area:top;display:flex;flex-direction:column;gap:12px}
-.stage{grid-area:stage;display:grid;place-items:center}
-.side{grid-area:side;display:flex;flex-direction:column;gap:14px;min-width:0}
+.stage{grid-area:stage;display:grid;place-items:center;min-height:0;min-width:0}
+.side{grid-area:side;display:flex;flex-direction:column;gap:12px;min-width:0}
+@supports (width:1cqh){
+  .stage{container-type:size}
+  .wheel{width:min(100cqw,100cqh,460px) !important}
+}
 
 /* ---------- Layout: side by side (landscape tablet) ---------- */
 @media (orientation:landscape) and (min-width:820px){
@@ -54,10 +59,12 @@ body{
     grid-template-rows:auto minmax(0,1fr);
     grid-template-areas:"stage top" "stage side";
     column-gap:28px;
-    align-content:stretch;
   }
-  .stage{align-self:center}
-  .wheel{width:min(100%, calc(100vh - 56px), calc(100dvh - 56px)) !important}
+  .side{justify-content:flex-start}
+  .wheel{width:min(100%, calc(100vh - 56px))}
+  @supports (width:1cqh){
+    .wheel{width:min(100cqw,100cqh,760px) !important}
+  }
 }
 
 /* ---------- Header ---------- */
@@ -268,4 +275,49 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
   .verdicts button{font-size:21px;padding:15px 10px}
   .time{font-size:40px}
 }
+
+/* ---------- Shorter screens: tighter spacing so everything stays on screen ---------- */
+@media (max-height:1100px) and (orientation:portrait), (max-height:800px){
+  h1{font-size:26px}
+  .card{padding:16px;gap:10px}
+  .clue{font-size:22px}
+  .cardhead{min-height:36px}
+  .answer{min-height:52px;padding-top:10px}
+  .answer .word{font-size:26px}
+  .verdicts{gap:10px}
+  .verdicts button{padding:14px 10px;font-size:23px}
+  .time{font-size:40px}
+  .b-go{padding:10px 18px}
+  .final h2{font-size:28px}
+  .final .score{font-size:19px}
+  .review{gap:6px 24px !important}
+  .review li{font-size:17px}
+  .b-again{padding:12px;font-size:21px}
+}
+
+/* ---------- Short landscape screens (iPad 9.7", iPad mini) ---------- */
+@media (orientation:landscape) and (max-height:750px){
+  .app{row-gap:8px;padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  .top{gap:8px}
+  .side{gap:8px}
+  h1{font-size:24px}
+  .settings{gap:8px}
+  .seg button{padding:6px 10px;font-size:15px}
+  .ghost{padding:7px 10px;font-size:14px}
+  .time{font-size:36px}
+  .card{padding:14px;gap:8px}
+  .clue{font-size:20px}
+  .cardhead{min-height:30px}
+  .answer{min-height:46px;padding-top:8px}
+  .answer .word{font-size:24px}
+  .verdicts{gap:8px}
+  .verdicts button{padding:12px 10px;font-size:21px}
+  .final h2{font-size:24px}
+  .final .score{font-size:17px}
+  .review li{font-size:16px;gap:8px}
+  .review .tag{width:28px;height:28px;font-size:15px}
+  .review .res{font-size:13px}
+  .b-again{padding:10px;font-size:19px}
+}
+
 @media (prefers-reduced-motion:reduce){.disc{transition:none}}

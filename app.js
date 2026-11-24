@@ -34,7 +34,8 @@ function wakeAudio(){
       const C = window.AudioContext || window.webkitAudioContext;
       if(C) ac = new C();
     }
-    if(ac && ac.state === 'suspended') ac.resume();
+    // iOS reports "interrupted" (not "suspended") after a screen lock or a call.
+    if(ac && ac.state !== 'running') ac.resume();
   }catch(e){ ac = null; }
 }
 function tone(type, hz, at, dur, vol){
@@ -84,8 +85,13 @@ function findVoice(){
   if(!canSpeak) return;
   let voices = [];
   try{ voices = speechSynthesis.getVoices() || []; }catch(e){}
-  const gb = voices.filter(v => String(v.lang).replace('_', '-').toLowerCase() === 'en-gb');
-  gbVoice = gb.find(v => v.localService) || gb[0] || null;
+  const novelty = /eloquence|grandma|grandpa|rocko|eddy|flo|reed|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|jester|organ|superstar|trinoids|whisper|wobble|zarvox/i;
+  const gb = voices.filter(v => String(v.lang).replace('_', '-').toLowerCase() === 'en-gb'
+    && !novelty.test(String(v.name) + ' ' + String(v.voiceURI || '')));
+  const local = gb.filter(v => v.localService !== false);
+  const pool = local.length ? local : gb;
+  gbVoice = pool.find(v => /daniel|kate|serena|martha|arthur|oliver/i.test(String(v.name)))
+    || pool.find(v => v.default) || pool[0] || null;
 }
 function hush(){
   try{ if(canSpeak) speechSynthesis.cancel(); }catch(e){}
@@ -194,6 +200,7 @@ function nextPending(from){
 }
 function mark(v){
   if(s.phase !== 'run' || s.cur < 0) return;
+  wakeAudio();
   hush();
   s.hist.push({cur:s.cur, st:s.st[s.cur], passed:s.passed[s.cur]});
   if(v === 'pass') s.passed[s.cur] = true; else s.st[s.cur] = v;
@@ -219,6 +226,7 @@ function undo(){
 }
 function go(){
   wakeAudio();
+  if(!gbVoice) findVoice();     // some Safari versions never fire "voiceschanged"
   hush();
   if(s.phase === 'ready' || s.phase === 'pause'){ s.phase = 'run'; runTimer(); }
   else if(s.phase === 'run'){ haltTimer(); s.phase = 'pause'; }
@@ -369,20 +377,32 @@ function save(){
   store(KEY_GAME, s);
 }
 function valid(g){
-  return g && Array.isArray(g.words) && g.words.length === N
-    && g.words.every((w, i) => w && w.l === LETTERS[i] && typeof w.w === 'string' && typeof w.d === 'string')
-    && Array.isArray(g.st) && g.st.length === N
-    && Array.isArray(g.passed) && g.passed.length === N
-    && Array.isArray(g.hist)
-    && typeof g.left === 'number' && typeof g.total === 'number'
-    && typeof g.cur === 'number' && g.cur >= -1 && g.cur < N
-    && ['ready', 'run', 'pause', 'done'].includes(g.phase);
+  if(!g || !Array.isArray(g.words) || g.words.length !== N) return false;
+  if(!g.words.every((w, i) => w && w.l === LETTERS[i] && typeof w.w === 'string' && typeof w.d === 'string'
+       && (w.type === 'starts' || w.type === 'contains'))) return false;
+  if(!Array.isArray(g.st) || g.st.length !== N
+     || !g.st.every(x => x === 'pending' || x === 'hit' || x === 'miss')) return false;
+  if(!Array.isArray(g.passed) || g.passed.length !== N || !g.passed.every(x => typeof x === 'boolean')) return false;
+  if(!Array.isArray(g.hist) || !g.hist.every(h => h && Number.isInteger(h.cur) && h.cur >= 0 && h.cur < N
+       && (h.st === 'pending' || h.st === 'hit' || h.st === 'miss') && typeof h.passed === 'boolean')) return false;
+  if(typeof g.total !== 'number' || !TIMERS.includes(g.total / 1000)) return false;
+  if(typeof g.left !== 'number' || !(g.left >= 0 && g.left <= g.total)) return false;
+  if(!['ready', 'run', 'pause', 'done'].includes(g.phase)) return false;
+  if(!Number.isInteger(g.cur) || g.cur < -1 || g.cur >= N) return false;
+  const pending = g.st.includes('pending');
+  if(g.phase === 'done'){ if(pending && !g.timeUp) return false; }
+  else if(g.cur < 0 || g.st[g.cur] !== 'pending') return false;
+  if(g.phase === 'ready' && (g.hist.length || !g.st.every(x => x === 'pending'))) return false;
+  return true;
 }
 function start(){
   const saved = load(KEY_GAME);
   if(valid(saved)){
     s = saved;
+    s.timeUp = s.timeUp === true;
+    s.shown = false;
     if(s.phase === 'run') s.phase = 'pause';
+    if(s.phase === 'ready'){ s.total = s.left = prefs.timer * 1000; }
     lastKey = keyOf(s.words);
     buildDiscs();
     render();
@@ -395,7 +415,7 @@ function start(){
 $('btn-hit').addEventListener('click', () => mark('hit'));
 $('btn-miss').addEventListener('click', () => mark('miss'));
 $('btn-pass').addEventListener('click', () => mark('pass'));
-$('toggle').addEventListener('click', () => { s.shown = !s.shown; render(); });
+$('toggle').addEventListener('click', () => { wakeAudio(); s.shown = !s.shown; render(); });
 $('undo').addEventListener('click', undo);
 $('again').addEventListener('click', newGame);
 $('new').addEventListener('click', newGame);
@@ -435,11 +455,18 @@ function offline(state, text){
   el.dataset.state = state;
   el.textContent = text;
 }
+/* On an iPad the Safari tab and the Home Screen app keep separate offline copies, so a tab
+   that is ready still has to be added to the Home Screen and opened once from there. */
+const inSafariTab = 'standalone' in navigator && !navigator.standalone;
 if('serviceWorker' in navigator){
+  const slow = setTimeout(() => offline('fail', 'Not ready for offline yet'), 30000);
   navigator.serviceWorker.register('./sw.js')
     .then(() => navigator.serviceWorker.ready)
-    .then(() => offline('ready', 'Ready to play offline'))
-    .catch(() => offline('fail', 'Online only'));
+    .then(() => {
+      clearTimeout(slow);
+      offline('ready', inSafariTab ? 'Ready: now add to Home Screen' : 'Ready to play offline');
+    })
+    .catch(() => { clearTimeout(slow); offline('fail', 'Online only'); });
 } else {
   offline('fail', 'Online only');
 }

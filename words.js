@@ -16,7 +16,7 @@
 const WORD_BANK = {
   B: [
     { type: 'starts', word: 'Bladder', clue: 'The organ, shaped like a bag, that stores urine until you go to the toilet.' },
-    { type: 'starts', word: 'Blood', clue: 'The red liquid that the kidneys clean all day and all night.' }
+    { type: 'starts', word: 'Bladder', clue: 'This organ stretches like a balloon as it fills up with urine.' }
   ],
   E: [
     { type: 'starts', word: 'Excretion', clue: 'The process of removing waste from the body.' },
@@ -31,7 +31,7 @@ const WORD_BANK = {
     { type: 'contains', word: 'Urethra', clue: 'The last part of the system. Urine leaves the body through this tube.' }
   ],
   K: [
-    { type: 'starts', word: 'Kidneys', clue: 'Two organs shaped like beans, in your back, one on each side, below the ribs.' },
+    { type: 'starts', word: 'Kidneys', clue: 'Two organs shaped like beans, near your back, one on each side, tucked under the bottom of your ribs.' },
     { type: 'starts', word: 'Kidneys', clue: 'The two organs that filter the blood and make urine.' }
   ],
   R: [
@@ -43,7 +43,7 @@ const WORD_BANK = {
     { type: 'starts', word: 'Urinary system', clue: 'The kidneys, the ureters, the bladder and the urethra, all together.' }
   ],
   W: [
-    { type: 'starts', word: 'Waste', clue: 'The substances that the body does not need and has to remove.' },
+    { type: 'starts', word: 'Waste', clue: 'Anything the body does not need and has to get rid of. Urine carries it out of the body.' },
     { type: 'starts', word: 'Water', clue: 'Urine is made mostly of this. You should drink lots of it every day.' }
   ]
 };

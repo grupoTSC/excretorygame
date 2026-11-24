@@ -42,7 +42,6 @@ const text = (page, id) => page.locator('#' + id).innerText();
 const count = (page, sel) => page.locator(sel).count();
 
 const LANDSCAPE = { width: 1180, height: 820 };   // iPad Air, landscape
-const PORTRAIT = { width: 820, height: 1180 };
 
 /* A fake speech engine, so reading aloud can be tested in a browser that has no voices. */
 function fakeSpeech(langs) {
@@ -293,47 +292,112 @@ function fakeSpeech(langs) {
     await context.close();
   }
 
-  /* ---------- 6. Portrait and small screens ---------- */
-  console.log('6. Portrait iPad and phone');
+  /* ---------- 6. Every iPad size, portrait and landscape ----------
+     Heights are 44px shorter than the real screen, to leave room for the status bar and the
+     home indicator that an installed app has to avoid (Chromium has no safe-area insets). */
+  console.log('6. Screen sizes');
   {
-    const { context, page } = await open({ viewport: PORTRAIT });
-    await page.goto(url2);
-    await page.waitForSelector('.disc');
-    await page.click('#go');
-    check('no sideways scrolling in portrait',
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-    check('portrait fits without scrolling',
-      await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight));
-    await shot(page, '5-playing-portrait.png');
-    await context.close();
-  }
-  {
+    const bank = require('../words.js');
+    const letters = Object.keys(bank);
+    const longest = l => bank[l].slice().sort((x, y) => y.clue.length - x.clue.length)[0];
+    const saved = {
+      words: letters.map(l => ({ l, type: longest(l).type, w: longest(l).word, d: longest(l).clue })),
+      st: letters.map(() => 'pending'), passed: letters.map(() => false),
+      cur: 0, shown: false, hist: [], phase: 'ready', left: 120000, total: 120000, timeUp: false
+    };
+    const seed = `if(!sessionStorage.getItem('seeded')){ sessionStorage.setItem('seeded','1');
+      localStorage.setItem('excretory-wheel-game', ${JSON.stringify(JSON.stringify(saved))}); }`;
+    const fits = page => page.evaluate(() => {
+      const bottom = id => { const e = document.getElementById(id); return e.offsetParent ? e.getBoundingClientRect().bottom : 0; };
+      const wheel = document.getElementById('wheel').getBoundingClientRect();
+      const bad = [];
+      if (document.documentElement.scrollHeight > window.innerHeight) bad.push('page taller than screen by ' + (document.documentElement.scrollHeight - window.innerHeight));
+      if (document.documentElement.scrollWidth > window.innerWidth) bad.push('page wider than screen');
+      for (const id of ['btn-pass', 'undo', 'new', 'again']) if (bottom(id) > window.innerHeight) bad.push(id + ' below the screen');
+      if (wheel.width < 200) bad.push('wheel only ' + Math.round(wheel.width) + 'px');
+      if (Math.abs(wheel.width - wheel.height) > 1) bad.push('wheel not round');
+      if (wheel.top < 0 || wheel.left < 0 || wheel.right > window.innerWidth) bad.push('wheel off screen');
+      const f = document.getElementById('final');
+      if (f.offsetParent && f.scrollHeight > f.clientHeight + 1) bad.push('final card clipped');
+      return bad.join(', ');
+    });
+    const SIZES = [
+      ['iPad 9.7 portrait', 768, 980], ['iPad 9.7 landscape', 1024, 724],
+      ['iPad 10.2 portrait', 810, 1036], ['iPad 10.2 landscape', 1080, 766],
+      ['iPad mini 6 portrait', 744, 1089], ['iPad mini 6 landscape', 1133, 700],
+      ['iPad Air 11 portrait', 820, 1136], ['iPad Air 11 landscape', 1180, 776],
+      ['iPad Pro 12.9 portrait', 1024, 1322], ['iPad Pro 12.9 landscape', 1366, 980]
+    ];
+    for (const [name, width, height] of SIZES) {
+      const { context, page } = await open({ viewport: { width, height }, init: seed });
+      await page.goto(url2);
+      await page.waitForSelector('.disc');
+      let problems = [];
+      let r = await fits(page); if (r) problems.push('ready: ' + r);
+      await page.click('#go');
+      for (let i = 0; i < 8; i++) {
+        await page.click('#toggle');
+        r = await fits(page); if (r) problems.push(letters[i] + ': ' + r);
+        if (i === 0 && /10\.2|Air 11/.test(name)) await shot(page, 'size-' + name.replace(/[ .]/g, '-') + '.png');
+        await page.click(i % 3 === 0 ? '#btn-miss' : '#btn-hit');
+      }
+      r = await fits(page); if (r) problems.push('final: ' + r);
+      if (/10\.2/.test(name)) await shot(page, 'final-' + name.replace(/[ .]/g, '-') + '.png');
+      check(name + ' (' + width + 'x' + height + ') fits at every step', problems.length === 0, problems.join(' | '));
+      await context.close();
+    }
     const { context, page } = await open({ viewport: { width: 390, height: 844 } });
     await page.goto(url2);
     await page.waitForSelector('.disc');
     await page.click('#go');
     check('no sideways scrolling on a phone',
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-    await shot(page, '6-playing-phone.png');
     await context.close();
   }
+
+  /* ---------- 7. Damaged saved games are thrown away ---------- */
+  console.log('7. Damaged saved games');
   {
-    const { context, page } = await open({ viewport: { width: 1024, height: 768 } });   // older iPad
+    const bank = require('../words.js');
+    const letters = Object.keys(bank);
+    const good = () => ({
+      words: letters.map(l => ({ l, type: bank[l][0].type, w: bank[l][0].word, d: bank[l][0].clue })),
+      st: letters.map((_, i) => (i === 0 ? 'hit' : 'pending')), passed: letters.map(() => false),
+      cur: 1, shown: false, hist: [{ cur: 0, st: 'pending', passed: false }],
+      phase: 'pause', left: 60000, total: 120000, timeUp: false
+    });
+    const CASES = {
+      'no current letter while paused': g => { g.cur = -1; },
+      'current letter already answered': g => { g.cur = 0; },
+      'unknown mark': g => { g.st[3] = 'maybe'; },
+      'timer length that does not exist': g => { g.total = 90000; },
+      'more time left than the timer has': g => { g.left = 500000; },
+      'broken undo history': g => { g.hist = [{ cur: 99 }]; },
+      'all answered but still paused': g => { g.st = g.st.map(() => 'hit'); },
+      'wrong letters': g => { g.words[2].l = 'Z'; },
+      'not an object': () => 'nonsense'
+    };
+    for (const [name, damage] of Object.entries(CASES)) {
+      const g = good();
+      const out = damage(g);
+      const value = JSON.stringify(out === undefined ? g : out);
+      const { context, page, errors } = await open({
+        init: `if(!sessionStorage.getItem('seeded')){ sessionStorage.setItem('seeded','1');
+          localStorage.setItem('excretory-wheel-game', ${JSON.stringify(value)}); }` });
+      await page.goto(url2);
+      await page.waitForSelector('.disc');
+      const fresh = (await text(page, 'go')) === 'Start' && (await text(page, 'hits')) === '0';
+      await page.click('#go');
+      await page.click('#btn-hit');
+      check(name + ' -> new game, no errors', fresh && errors.length === 0 && (await text(page, 'hits')) === '1', errors.join(' | '));
+      await context.close();
+    }
+    const { context, page } = await open({
+      init: `if(!sessionStorage.getItem('seeded')){ sessionStorage.setItem('seeded','1');
+        localStorage.setItem('excretory-wheel-game', ${JSON.stringify(JSON.stringify(good()))}); }` });
     await page.goto(url2);
     await page.waitForSelector('.disc');
-    await page.click('#go');
-    check('older iPad landscape fits without scrolling',
-      await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight
-        && document.documentElement.scrollWidth <= window.innerWidth));
-    for (let i = 0; i < 8; i++) await page.click('#btn-miss');
-    check('final screen fits on an older iPad, Play again visible',
-      await page.evaluate(() => {
-        const r = document.getElementById('again').getBoundingClientRect();
-        const c = document.getElementById('final');
-        return r.bottom <= window.innerHeight && c.scrollHeight <= c.clientHeight + 1
-          && document.documentElement.scrollHeight <= window.innerHeight;
-      }));
-    await shot(page, '7-final-ipad-1024.png');
+    check('a healthy saved game is still restored', (await text(page, 'go')) === 'Resume' && (await text(page, 'hits')) === '1');
     await context.close();
   }
 

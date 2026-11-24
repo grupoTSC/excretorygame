@@ -36,13 +36,12 @@ for (const l of letters) {
   }
 }
 
-// The four parts of the system must be reachable in every game.
-for (const part of ['KIDNEYS', 'URETERS', 'URETHRA']) {
+// The four parts of the system must come up in every game.
+for (const part of ['KIDNEYS', 'URETERS', 'BLADDER', 'URETHRA']) {
   const l = owner[part];
   if (!l) errors.push(part + ' is missing from the bank');
   else if (!bank[l].every(e => e.word.toUpperCase() === part)) errors.push(part + ' does not appear in every game');
 }
-if (!owner['BLADDER']) errors.push('BLADDER is missing from the bank');
 
 if (errors.length) {
   console.error('Word bank problems:\n - ' + errors.join('\n - '));
