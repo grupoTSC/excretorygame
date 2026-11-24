@@ -1,7 +1,7 @@
 /* Service worker: downloads the whole game once and then always serves it from the cache,
  * so it works with no internet connection.
  * Bump VERSION whenever any file changes, so installed devices fetch the new copy. */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'excretory-wheel-' + VERSION;
 const FILES = [
   './',
