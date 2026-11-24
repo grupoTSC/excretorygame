@@ -246,6 +246,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .tally b{color:var(--ink)}
 .foot .btns{display:flex;gap:8px;flex:none}
 
+/* ---------- Credit, bottom right ---------- */
+.credit{margin:auto 0 0;text-align:right;font-size:13px;line-height:1.2;font-weight:600;color:var(--muted);opacity:.8}
+
 /* ---------- Final review ---------- */
 .final{overflow:auto}
 .final h2{font-family:var(--display);font-weight:800;font-size:34px;line-height:1.1;margin:0}

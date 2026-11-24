@@ -155,6 +155,12 @@ function fakeSpeech(langs) {
     check('play again deals a new wheel', (await text(page, 'hits')) === '0' && (await text(page, 'time')) === '2:00');
     check('no console errors', errors.length === 0, errors.join(' | '));
     check('no requests outside the game', foreign.length === 0, foreign.join(' | '));
+    check('credit shown at the bottom right', await page.evaluate(() => {
+      const c = document.getElementById('credit');
+      const r = c.getBoundingClientRect();
+      return c.textContent === 'made by Lucia Vargas 5º B' && c.offsetParent !== null
+        && r.right > window.innerWidth - 60 && r.bottom > window.innerHeight - 80 && r.bottom <= window.innerHeight;
+    }));
     await context.close();
   }
 
@@ -313,7 +319,7 @@ function fakeSpeech(langs) {
       const bad = [];
       if (document.documentElement.scrollHeight > window.innerHeight) bad.push('page taller than screen by ' + (document.documentElement.scrollHeight - window.innerHeight));
       if (document.documentElement.scrollWidth > window.innerWidth) bad.push('page wider than screen');
-      for (const id of ['btn-pass', 'undo', 'new', 'again']) if (bottom(id) > window.innerHeight) bad.push(id + ' below the screen');
+      for (const id of ['btn-pass', 'undo', 'new', 'again', 'credit']) if (bottom(id) > window.innerHeight) bad.push(id + ' below the screen');
       if (wheel.width < 200) bad.push('wheel only ' + Math.round(wheel.width) + 'px');
       if (Math.abs(wheel.width - wheel.height) > 1) bad.push('wheel not round');
       if (wheel.top < 0 || wheel.left < 0 || wheel.right > window.innerWidth) bad.push('wheel off screen');
