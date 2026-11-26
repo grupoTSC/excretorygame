@@ -158,7 +158,7 @@ function fakeSpeech(langs) {
     check('credit shown at the bottom right', await page.evaluate(() => {
       const c = document.getElementById('credit');
       const r = c.getBoundingClientRect();
-      return c.textContent === 'made by Lucia Vargas 5º B' && c.offsetParent !== null
+      return c.textContent === 'made by Lucía Vargas 5º A' && c.offsetParent !== null
         && r.right > window.innerWidth - 60 && r.bottom > window.innerHeight - 80 && r.bottom <= window.innerHeight;
     }));
     await context.close();
